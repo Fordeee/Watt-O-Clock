@@ -1217,7 +1217,7 @@ function renderAppliances(){
       body += row(r.label, r.s, isPick);
     });
     if (!pickShown) body = row('Balanced', pick, true) + body;
-    picks.innerHTML = '<table><thead><tr><th>Start</th><th>When</th><th class="num">CO₂</th><th class="num">Cost</th></tr></thead><tbody>' +
+    picks.innerHTML = '<table><thead><tr><th>Start</th><th>When</th><th class="num">CO₂ per run</th><th class="num">Cost per run</th></tr></thead><tbody>' +
       body + '</tbody></table>' +
       '<p class="picks-note">Cost is for about ' + fmtKwh(selKwh) + ' kWh, the energy this ' + appName +
       ' run uses. Move the priority slider to trade carbon against cost.</p>';
