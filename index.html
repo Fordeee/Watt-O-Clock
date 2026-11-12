@@ -248,6 +248,18 @@
   .lean input{width:100%;accent-color:var(--ink)}
   .lean-ends{display:flex;justify-content:space-between;font-family:var(--mono);font-size:.72rem;color:var(--ink-muted)}
   .lean-ends #leanVal{color:var(--ink);font-weight:600}
+  .ver{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center}
+  .ver select,.ver input{
+    font-family:var(--mono);font-size:.85rem;color:var(--ink);background:var(--paper);
+    border:1.5px solid var(--ink);border-radius:8px;padding:6px 8px;max-width:100%;
+  }
+  .ver select{flex:1 1 220px;min-width:0}
+  .ver-custom{display:flex;gap:8px;flex:1 1 100%;flex-wrap:wrap}
+  .ver-custom input{flex:1 1 220px;min-width:0;text-transform:uppercase}
+  .ver-help{flex:1 1 100%;font-size:.8rem;color:var(--ink-muted)}
+  .ver-help code{font-family:var(--mono);font-size:.95em;color:var(--ink)}
+  .go.small{padding:6px 14px;font-size:.85rem;align-self:auto}
+  .saved{margin-top:6px;font-size:.85rem;color:var(--ink-muted);display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
   .tnote{font-size:.85rem;color:var(--ink-muted)}
   .tnote:empty{display:none}
   .tnote.warn{color:var(--high)}
@@ -323,6 +335,10 @@
     <button class="go" id="go" type="button">Get forecast</button>
   </div>
   <p id="status" role="status" aria-live="polite"></p>
+  <p class="saved" id="savedLine" hidden>
+    <span id="savedText"></span>
+    <button type="button" class="refresh" id="forget">Forget my settings</button>
+  </p>
 
   <div class="netcard" id="netcard" hidden>
     <b>The carbon forecast service isn&rsquo;t answering.</b> Check your internet connection and try again.
@@ -355,6 +371,16 @@
           <button type="button" data-t="agile">Octopus Agile</button>
           <button type="button" data-t="tracker">Octopus Tracker</button>
         </div>
+      </div>
+      <div class="ver" id="verRow" hidden>
+        <label for="verSel" class="tlabel">Version</label>
+        <select id="verSel"></select>
+        <div class="ver-custom" id="verCustom" hidden>
+          <input id="verCode" type="text" spellcheck="false" autocomplete="off"
+                 placeholder="e.g. E-1R-SILVER-24-10-01-C" aria-label="Your tariff code">
+          <button type="button" class="go small" id="verUse">Use code</button>
+        </div>
+        <p class="ver-help">Your tariff code is on your bill and in the tariff details of your Octopus account. It looks like <code>E-1R-SILVER-24-10-01-C</code>; the date in the middle is your version and the last letter is your region.</p>
       </div>
       <div class="lean" id="leanRow" hidden>
         <label for="lean" class="tlabel">Priority</label>
@@ -612,6 +638,18 @@ function minBy(arr, key) {
   return best;
 }
 
+// Read a tariff or product code as pasted from an Octopus bill or account,
+// e.g. "E-1R-SILVER-24-10-01-C" or "silver-24-10-01".
+// Returns { product, region } (region null if not in the code), or null.
+function parseTariffCode(raw) {
+  var s = String(raw || '').toUpperCase().replace(/\s+/g, '');
+  var PRODUCT = /^[A-Z]+(?:-[A-Z]+)*-\d{2}-\d{2}-\d{2}$/;
+  var full = /^E-[12]R-(.+)-([A-HJ-NP])$/.exec(s);
+  if (full && PRODUCT.test(full[1])) return { product: full[1], region: full[2] };
+  if (PRODUCT.test(s)) return { product: s, region: null };
+  return null;
+}
+
 /* ---- end pure logic ---- */
 
 /* ---- App ---- */
@@ -667,8 +705,21 @@ const FUEL_COLOURS = {
 
 const state = {
   postcode:null, region:null, periods:[], terc:null, sel:'dish', custom:{}, nowIdx:0,
-  tariff:'none', lean:0.5, priceSets:{}, priceErr:{}, loadingPrices:false
+  tariff:'none', lean:0.5, priceSets:{}, priceErr:{}, loadingPrices:false,
+  // per tariff: 'auto' (newest version) or a product code, plus a region
+  // letter when it came from a pasted full tariff code
+  codes:{ agile:'auto', tracker:'auto' }, codeRegion:{ agile:null, tracker:null },
+  savedPostcode:null
 };
+
+// Tracker versions still in use. Each has its own pricing formula; the date
+// in the code is when that version launched.
+const TRACKER_VERSIONS = [
+  ['SILVER-26-04-01', 'April 2026'], ['SILVER-25-09-02', 'September 2025'],
+  ['SILVER-25-04-15', 'April 2025'], ['SILVER-24-12-31', 'December 2024'],
+  ['SILVER-24-10-01', 'October 2024'], ['SILVER-24-07-01', 'July 2024'],
+  ['SILVER-24-04-03', 'April 2024'], ['SILVER-23-12-06', 'December 2023']
+];
 
 /* --- Octopus prices --- */
 // Octopus is moving its public API to a new address; try the new one first.
@@ -680,15 +731,61 @@ const REGION_NAME = { A:'Eastern', B:'East Midlands', C:'London', D:'Merseyside 
   E:'West Midlands', F:'North East', G:'North West', H:'Southern', J:'South East',
   K:'South Wales', L:'South West', M:'Yorkshire', N:'South Scotland', P:'North Scotland' };
 
+// Settings are kept in this browser only: postcode area (first half only),
+// tariff, version, priority and any appliance run times you've changed.
+const PREFS_KEY = 'wattoclock-prefs';
 function loadPrefs(){
   try {
-    const p = JSON.parse(localStorage.getItem('wattoclock-prefs') || '{}');
+    const p = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}');
     if (p.tariff in { none:1, agile:1, tracker:1 }) state.tariff = p.tariff;
     if (typeof p.lean === 'number' && p.lean >= 0 && p.lean <= 1) state.lean = p.lean;
+    if (p.postcode && normalisePostcode(p.postcode)) state.savedPostcode = normalisePostcode(p.postcode);
+    ['agile', 'tracker'].forEach(k => {
+      const c = p.codes && p.codes[k];
+      if (c === 'auto' || (c && parseTariffCode(c))) state.codes[k] = c;
+      const r = p.codeRegion && p.codeRegion[k];
+      if (r && /^[A-HJ-NP]$/.test(r)) state.codeRegion[k] = r;
+    });
+    if (p.custom && typeof p.custom === 'object') {
+      APPLIANCES.forEach(a => {
+        const c = p.custom[a.id];
+        if (!c) return;
+        const keep = {};
+        if (Number.isInteger(c.slots) && c.slots >= a.minSlots && c.slots <= a.maxSlots) keep.slots = c.slots;
+        if (typeof c.kwh === 'number' && c.kwh > 0 && c.kwh < 200) keep.kwh = c.kwh;
+        if (keep.slots || keep.kwh) state.custom[a.id] = keep;
+      });
+    }
   } catch (e) {}
 }
 function savePrefs(){
-  try { localStorage.setItem('wattoclock-prefs', JSON.stringify({ tariff: state.tariff, lean: state.lean })); } catch (e) {}
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify({
+      tariff: state.tariff, lean: state.lean, postcode: state.savedPostcode,
+      codes: state.codes, codeRegion: state.codeRegion, custom: state.custom
+    }));
+  } catch (e) {}
+  renderSaved();
+}
+function forgetPrefs(){
+  try { localStorage.removeItem(PREFS_KEY); } catch (e) {}
+  state.savedPostcode = null;
+  state.tariff = 'none'; state.lean = 0.5; state.custom = {};
+  state.codes = { agile:'auto', tracker:'auto' }; state.codeRegion = { agile:null, tracker:null };
+  state.priceSets = {}; state.priceErr = {};
+  renderSaved();
+  if (state.periods.length) render(); else renderTariff();
+}
+function renderSaved(){
+  const line = $('savedLine');
+  if (!state.savedPostcode) { line.hidden = true; return; }
+  const bits = [state.savedPostcode];
+  if (state.tariff !== 'none') {
+    const c = state.codes[state.tariff];
+    bits.push('Octopus ' + TARIFF_NAME[state.tariff] + (c && c !== 'auto' ? ' (' + c + ')' : ''));
+  }
+  $('savedText').textContent = 'Saved on this device: ' + bits.join(' · ') + '.';
+  line.hidden = false;
 }
 
 async function octoGet(path){
@@ -727,15 +824,21 @@ async function findProduct(kind){
   return OCTO_FALLBACK[kind];
 }
 
+function priceRegion(kind){
+  return state.codeRegion[kind] || (state.region && state.region.letter) || null;
+}
+
 async function loadPrices(kind){
   const P = state.periods;
-  if (kind === 'none' || !P.length || !state.region.letter) return;
+  const letter = priceRegion(kind);
+  if (kind === 'none' || !P.length || !letter) return;
   if (state.priceSets[kind]) return;
   state.loadingPrices = true; delete state.priceErr[kind];
   renderTariff();
   try {
-    const code = await findProduct(kind);
-    const tariff = 'E-1R-' + code + '-' + state.region.letter;
+    const chosen = state.codes[kind];
+    const code = chosen && chosen !== 'auto' ? chosen : await findProduct(kind);
+    const tariff = 'E-1R-' + code + '-' + letter;
     const from = new Date(P[0].from.getTime() - 26 * 3600e3).toISOString().slice(0, 16) + 'Z';
     const to = P[P.length - 1].to.toISOString().slice(0, 16) + 'Z';
     const j = await octoGet('/v1/products/' + code + '/electricity-tariffs/' + tariff +
@@ -744,7 +847,7 @@ async function loadPrices(kind){
     if (!prices.some(v => v !== null)) throw new Error('no rates');
     let lastIdx = -1;
     prices.forEach((v, i) => { if (v !== null) lastIdx = i; });
-    state.priceSets[kind] = { code, prices, pricedUntil: lastIdx >= 0 ? P[lastIdx].to : null,
+    state.priceSets[kind] = { code, letter, prices, pricedUntil: lastIdx >= 0 ? P[lastIdx].to : null,
                               complete: prices.every(v => v !== null) };
   } catch (e) {
     state.priceErr[kind] = true;
@@ -764,6 +867,23 @@ function fmtMoney(pence){
   return (neg && Math.round(v) !== 0 ? '−' : '') + s;
 }
 
+function renderVersion(){
+  const row = $('verRow'), sel = $('verSel');
+  const kind = state.tariff;
+  if (kind === 'none') { row.hidden = true; return; }
+  row.hidden = false;
+  const chosen = state.codes[kind] || 'auto';
+  const known = kind === 'tracker' ? TRACKER_VERSIONS : [];
+  const opts = [['auto', kind === 'tracker' ? 'Newest version (for people joining now)' : 'Current version (for people joining now)']]
+    .concat(known.map(([code, when]) => [code, when + ' version (' + code + ')']));
+  const isKnown = opts.some(o => o[0] === chosen);
+  if (!isKnown) opts.push([chosen, 'Your code: ' + chosen]);
+  opts.push(['other', 'Enter my tariff code…']);
+  sel.innerHTML = opts.map(([v, label]) =>
+    '<option value="' + v + '"' + (v === chosen ? ' selected' : '') + '>' + label + '</option>').join('');
+  if ($('verCustom').hidden === false && sel.value !== 'other') $('verCustom').hidden = true;
+}
+
 function renderTariff(){
   document.querySelectorAll('#tariffSeg button').forEach(b =>
     b.setAttribute('aria-pressed', String(b.dataset.t === state.tariff)));
@@ -771,6 +891,7 @@ function renderTariff(){
   const L = state.lean;
   $('leanVal').textContent = L <= 0.02 ? 'Greenest only' : L >= 0.98 ? 'Cheapest only' :
     L < 0.4 ? 'Mostly green' : L > 0.6 ? 'Mostly cheap' : 'Balanced';
+  renderVersion();
 
   const note = $('tariffNote');
   note.className = 'tnote';
@@ -779,16 +900,20 @@ function renderTariff(){
   $('priceLegend').hidden = !set;
   if (state.tariff === 'none') { note.textContent = ''; return; }
   const name = TARIFF_NAME[state.tariff];
-  const reg = state.region && state.region.letter
-    ? ' region ' + state.region.letter + ' (' + REGION_NAME[state.region.letter] + ')' : '';
   if (state.loadingPrices && !set) { note.textContent = 'Loading Octopus ' + name + ' prices…'; return; }
   if (state.priceErr[state.tariff]) {
     note.className = 'tnote warn';
-    note.textContent = 'Couldn’t load Octopus ' + name + ' prices right now, so this is carbon only. Tap Refresh to try again.';
+    const c = state.codes[state.tariff];
+    note.textContent = c && c !== 'auto'
+      ? 'Couldn’t load prices for ' + c + ' in region ' + priceRegion(state.tariff) +
+        '. Check the code matches your bill, or tap Refresh to try again. Showing carbon only for now.'
+      : 'Couldn’t load Octopus ' + name + ' prices right now, so this is carbon only. Tap Refresh to try again.';
     return;
   }
   if (!set) { note.textContent = ''; return; }
-  let s = name + ' prices for' + reg + ' (' + set.code + '), including VAT.';
+  const fromCode = !!state.codeRegion[state.tariff];
+  let s = name + ' ' + set.code + ' prices for region ' + set.letter + ' (' + REGION_NAME[set.letter] + ')' +
+          (fromCode ? ', taken from your tariff code' : '') + ', including VAT.';
   if (!set.complete && set.pricedUntil) {
     s += ' Prices are published up to ' + fmtTime(set.pricedUntil) + ' ' + dayWord(set.pricedUntil) + '. ';
     s += state.tariff === 'agile'
@@ -798,6 +923,20 @@ function renderTariff(){
     s += ' Tracker has one price per day, so cost only changes your start time when a run could move to a cheaper day.';
   }
   note.textContent = s;
+}
+
+// Switch the version for the current tariff and reload its prices.
+async function setVersion(code, region){
+  const kind = state.tariff;
+  if (kind === 'none') return;
+  state.codes[kind] = code;
+  state.codeRegion[kind] = region || null;
+  delete state.priceSets[kind]; delete state.priceErr[kind];
+  savePrefs();
+  if (!state.periods.length) { renderTariff(); return; }
+  render();
+  await loadPrices(kind);
+  render();
 }
 
 /* --- formatting helpers (local time) --- */
@@ -866,6 +1005,8 @@ async function run(raw){
       mix: p.generationmix || []
     }));
     state.priceSets = {}; state.priceErr = {};
+    state.savedPostcode = outward;
+    savePrefs();
     status.className = ''; status.textContent = '';
     $('netcard').hidden = true;
     render();
@@ -959,15 +1100,17 @@ function renderControls(sel, slotsNow, kwhNow, maxAvail){
     const cur = state.custom[sel.id] || (state.custom[sel.id] = {});
     cur.slots = +ev.target.value;
     delete cur.kwh;   // new run time = new programme, so re-estimate energy
+    savePrefs();
     renderAppliances();
   });
   $('kwhIn').addEventListener('change', ev => {
     const v = parseFloat(ev.target.value);
     const cur = state.custom[sel.id] || (state.custom[sel.id] = {});
     if (v > 0) cur.kwh = v; else delete cur.kwh;
+    savePrefs();
     renderAppliances();
   });
-  $('resetCust').addEventListener('click', () => { delete state.custom[sel.id]; renderAppliances(); });
+  $('resetCust').addEventListener('click', () => { delete state.custom[sel.id]; savePrefs(); renderAppliances(); });
 }
 
 // Everything the page needs to know about one appliance at its chosen run time.
@@ -1276,9 +1419,49 @@ $('lean').addEventListener('input', ev => {
   leanTimer = setTimeout(() => { savePrefs(); if (state.periods.length) renderAppliances(); }, 60);
 });
 
+$('verSel').addEventListener('change', ev => {
+  const v = ev.target.value;
+  if (v === 'other') {
+    $('verCustom').hidden = false;
+    $('verCode').value = '';
+    $('verCode').focus();
+    return;
+  }
+  $('verCustom').hidden = true;
+  setVersion(v, null);
+});
+function useTypedCode(){
+  const parsed = parseTariffCode($('verCode').value);
+  const note = $('tariffNote');
+  if (!parsed) {
+    note.className = 'tnote warn';
+    note.textContent = 'That doesn\u2019t look like an Octopus tariff code. It should look like E-1R-SILVER-24-10-01-C.';
+    return;
+  }
+  const want = state.tariff === 'tracker' ? /^SILVER-/ : /^AGILE-/;
+  if (!want.test(parsed.product)) {
+    note.className = 'tnote warn';
+    note.textContent = parsed.product + ' isn\u2019t an Octopus ' + TARIFF_NAME[state.tariff] +
+      ' code. Pick the other tariff above if that\u2019s the one you\u2019re on.';
+    return;
+  }
+  $('verCustom').hidden = true;
+  setVersion(parsed.product, parsed.region);
+}
+$('verUse').addEventListener('click', useTypedCode);
+$('verCode').addEventListener('keydown', e => { if (e.key === 'Enter') useTypedCode(); });
+$('forget').addEventListener('click', forgetPrefs);
+
 loadPrefs();
 renderTariff();
-$('pc').focus();
+renderSaved();
+if (state.savedPostcode) {
+  // Saved settings: go straight to the forecast
+  $('pc').value = state.savedPostcode;
+  run(state.savedPostcode);
+} else {
+  $('pc').focus();
+}
 
 // Connectivity self-check on load: sandboxed previews (like in-chat viewers) often
 // block outside requests. If the API is unreachable, say so up front.
