@@ -229,6 +229,48 @@
   }
   .avoid b{font-family:var(--mono)}
 
+  /* ---------- tariff + balance ---------- */
+  .tariff{
+    background:var(--card);border:1px solid var(--hairline);border-radius:var(--radius);
+    padding:12px 14px;margin-bottom:16px;display:flex;flex-direction:column;gap:10px;
+  }
+  .trow{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+  .tlabel{font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted)}
+  .seg{display:flex;flex-wrap:wrap;gap:6px}
+  .seg button{
+    font-family:var(--mono);font-size:.82rem;color:var(--ink);background:var(--paper);
+    border:1.5px solid var(--ink);border-radius:999px;padding:5px 12px;cursor:pointer;
+  }
+  .seg button[aria-pressed="true"]{background:var(--ink);color:var(--signal)}
+  .seg button:focus-visible,.lean input:focus-visible{outline:3px solid var(--signal);outline-offset:2px}
+  .lean{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
+  .lean-track{flex:1 1 240px;min-width:0}
+  .lean input{width:100%;accent-color:var(--ink)}
+  .lean-ends{display:flex;justify-content:space-between;font-family:var(--mono);font-size:.72rem;color:var(--ink-muted)}
+  .lean-ends #leanVal{color:var(--ink);font-weight:600}
+  .tnote{font-size:.85rem;color:var(--ink-muted)}
+  .tnote:empty{display:none}
+  .tnote.warn{color:var(--high)}
+
+  .picks{
+    margin-top:12px;background:var(--card);border:1px solid var(--hairline);
+    border-radius:var(--radius);overflow-x:auto;
+  }
+  .picks table{width:100%;border-collapse:collapse;font-size:.9rem;font-variant-numeric:tabular-nums}
+  .picks th,.picks td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--hairline-soft);vertical-align:top}
+  .picks td.num,.picks th.num{white-space:nowrap}
+  .picks .tag{display:inline-block;margin-top:2px}
+  .picks tr:last-child td{border-bottom:none}
+  .picks th{font-family:var(--mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);font-weight:500}
+  .picks td.num{font-family:var(--mono);text-align:right}
+  .picks th.num{text-align:right}
+  .picks tr.chosen td{background:var(--low-tint);font-weight:600}
+  .picks .tag{font-family:var(--mono);font-size:.68rem;padding:1px 7px;border-radius:999px;border:1px solid currentColor;margin-left:6px;font-weight:500}
+  .picks .na{color:var(--ink-muted);font-style:italic}
+  .picks-note{padding:8px 12px;font-size:.84rem;color:var(--ink-muted);border-top:1px solid var(--hairline-soft);white-space:normal}
+
+  .legend i.pline{width:14px;height:0;border-top:2px solid var(--ink);border-radius:0;align-self:center}
+
   /* ---------- connectivity banner ---------- */
   .netcard{
     margin-top:16px;background:rgba(242,194,48,.18);
@@ -283,15 +325,13 @@
   <p id="status" role="status" aria-live="polite"></p>
 
   <div class="netcard" id="netcard" hidden>
-    <b>This preview is blocking internet access</b>, so live NESO data can&rsquo;t load here.
-    Download <code>watt-oclock.html</code> from the chat and open it directly in a browser
-    &mdash; double-clicking the file on a computer is enough, no server needed.
-    Everything in the app works from a plain local file.
+    <b>The carbon forecast service isn&rsquo;t answering.</b> Check your internet connection and try again.
+    If you&rsquo;ve opened the app from a saved file rather than its web link, use the link instead.
   </div>
 
   <section class="intro" id="intro">
     <p>Every unit of electricity you use has a carbon cost, and it changes through the day &mdash; low when wind and solar are plentiful, high when gas plants pick up the slack.</p>
-    <p>Enter your postcode and Watt O&rsquo;Clock reads the next 24 hours of NESO&rsquo;s half-hourly forecast for your region, then finds the cleanest start time for each appliance &mdash; weighted by when it actually draws power, not just how long it runs.</p>
+    <p>Enter your postcode and Watt O&rsquo;Clock reads the next 24 hours of NESO&rsquo;s half-hourly forecast for your region, then finds the cleanest start time for each appliance &mdash; weighted by when it actually draws power, not just how long it runs. If you&rsquo;re on Octopus Agile or Tracker, it can weigh price against carbon too.</p>
     <div class="swatches">
       <span><i style="background:var(--low)"></i>cleanest third of the day</span>
       <span><i style="background:var(--mid)"></i>middle</span>
@@ -307,8 +347,28 @@
       <button class="refresh" id="refresh" type="button">Refresh</button>
     </div>
 
+    <section class="tariff" aria-label="Electricity tariff">
+      <div class="trow">
+        <span class="tlabel">Your tariff</span>
+        <div class="seg" id="tariffSeg" role="group" aria-label="Tariff">
+          <button type="button" data-t="none">Carbon only</button>
+          <button type="button" data-t="agile">Octopus Agile</button>
+          <button type="button" data-t="tracker">Octopus Tracker</button>
+        </div>
+      </div>
+      <div class="lean" id="leanRow" hidden>
+        <label for="lean" class="tlabel">Priority</label>
+        <div class="lean-track">
+          <input id="lean" type="range" min="0" max="100" step="5" value="50" aria-describedby="leanVal">
+          <div class="lean-ends"><span>Greenest</span><span id="leanVal">Balanced</span><span>Cheapest</span></div>
+        </div>
+      </div>
+      <p class="tnote" id="tariffNote"></p>
+    </section>
+
     <h1 class="verdict" id="verdict"></h1>
     <p class="subline" id="subline"></p>
+    <div class="picks" id="picks" hidden></div>
     <p class="flatnote" id="flatnote" hidden></p>
 
     <section class="chart-card">
@@ -319,6 +379,7 @@
           <span><i style="background:var(--mid)"></i>middle</span>
           <span><i style="background:var(--high)"></i>heaviest</span>
           <span><i style="background:var(--signal);border:1px solid var(--ink)"></i>now</span>
+          <span id="priceLegend" hidden><i class="pline"></i>price p/kWh</span>
         </div>
       </div>
       <div class="chart-scroll">
@@ -353,7 +414,7 @@
   <footer>
     <p>Forecast data from the <a href="https://carbonintensity.org.uk" rel="noopener">NESO Carbon Intensity API</a> (licence CC&nbsp;BY&nbsp;4.0). Regional forecasts are half-hourly, indicative, and cover Great Britain only &mdash; Northern Ireland is on a separate grid.</p>
     <p>Times are shown in your local timezone. Forecasts refresh every 30 minutes, so check back before you press start. The &ldquo;index&rdquo; badge compares your region to typical national levels; bar colours compare each half-hour to the rest of <em>your</em> day. Appliance profiles and kWh figures are typical shapes (a 40&deg; wash, a standard dishwasher cycle, a 7&nbsp;kW charger) &mdash; your machine will differ in detail, but the timing logic holds. The kWh estimate scales with your chosen run time and is editable; eco programmes often use <em>less</em> energy than the estimate despite running longer, so type in your machine&rsquo;s figure if you know it. Changing the run time re-estimates the energy.</p>
-    <p>If nothing loads, this page couldn&rsquo;t reach api.carbonintensity.org.uk &mdash; sandboxed previews sometimes block outside requests, in which case download the file and open it directly in your browser.</p>
+    <p>Prices come from Octopus Energy&rsquo;s public tariff data for your region, including VAT, and exclude the standing charge, which doesn&rsquo;t change with timing. Agile prices for the next day are usually published in the late afternoon; Tracker prices are set a day at a time. The priority slider trades carbon against cost: at the middle setting, a start that is a little worse on both can beat one that is best on one and poor on the other.</p>
   </footer>
 </div>
 
@@ -460,6 +521,97 @@ function buildProfile(p, nSlots) {
   return w;
 }
 
+// NESO region id -> Octopus / DNO region letter (GSP group).
+var REGION_LETTER = { 1:'P', 2:'N', 3:'G', 4:'F', 5:'M', 6:'D', 7:'K',
+                      8:'E', 9:'B', 10:'A', 11:'L', 12:'H', 13:'C', 14:'J' };
+
+// Line up Octopus unit rates (p/kWh inc VAT) with the forecast half-hours.
+// periods: [{from: Date}], rates: [{valid_from, valid_to, value_inc_vat, payment_method}]
+// Returns one price per period, or null where no published rate covers it.
+// Where rates overlap, direct-debit (or unlabelled) rates win.
+function alignPrices(periods, rates) {
+  var rs = (rates || []).map(function (r) {
+    return {
+      a: Date.parse(r.valid_from),
+      b: r.valid_to ? Date.parse(r.valid_to) : Infinity,
+      v: r.value_inc_vat,
+      dd: !r.payment_method || r.payment_method === 'DIRECT_DEBIT'
+    };
+  }).filter(function (r) { return isFinite(r.a) && typeof r.v === 'number'; });
+  return periods.map(function (p) {
+    var t = p.from.getTime(), hit = null;
+    for (var i = 0; i < rs.length; i++) {
+      var r = rs[i];
+      if (r.a <= t && t < r.b && (!hit || (r.dd && !hit.dd))) hit = r;
+    }
+    return hit ? hit.v : null;
+  });
+}
+
+// Score every start time for an appliance: energy-weighted carbon (g/kWh)
+// and, where every slot of the run has a published price, energy-weighted
+// price (p/kWh). p is null when any slot of the run is unpriced.
+function scoreStarts(carbon, prices, weights) {
+  var k = weights.length, n = carbon.length, out = [], j;
+  if (k > n) return out;
+  var sumW = 0;
+  for (j = 0; j < k; j++) sumW += weights[j];
+  var wn = weights.map(function (x) { return x / sumW; });
+  for (var i = 0; i + k <= n; i++) {
+    var c = 0, p = 0, priced = !!prices;
+    for (j = 0; j < k; j++) {
+      c += wn[j] * carbon[i + j];
+      if (priced) {
+        var v = prices[i + j];
+        if (v === null || v === undefined) priced = false; else p += wn[j] * v;
+      }
+    }
+    out.push({ i: i, c: c, p: priced ? p : null });
+  }
+  return out;
+}
+
+// Pick a start balancing carbon against cost.
+// lean: 0 = greenest only, 1 = cheapest only. Each measure is scaled to the
+// spread across the candidate starts, with a floor so trivial differences
+// (a few g, a fraction of a penny) can't drive the choice.
+function balancePick(scores, lean, floors) {
+  floors = floors || { c: 20, p: 1.5 };
+  if (!scores.length) return null;
+  var priced = scores.filter(function (s) { return s.p !== null; });
+  var pool = (lean > 0 && priced.length) ? priced : scores;
+  var usePrice = lean > 0 && priced.length > 0;
+  var cMin = Infinity, cMax = -Infinity, pMin = Infinity, pMax = -Infinity;
+  pool.forEach(function (s) {
+    if (s.c < cMin) cMin = s.c; if (s.c > cMax) cMax = s.c;
+    if (usePrice) { if (s.p < pMin) pMin = s.p; if (s.p > pMax) pMax = s.p; }
+  });
+  var cSpan = Math.max(cMax - cMin, floors.c);
+  var pSpan = Math.max(pMax - pMin, floors.p);
+  var best = null, bestScore = Infinity;
+  pool.forEach(function (s) {
+    var nc = (s.c - cMin) / cSpan;
+    var np = usePrice ? (s.p - pMin) / pSpan : 0;
+    var sc = (1 - lean) * nc + lean * np;
+    if (sc < bestScore - 1e-12 ||
+        (Math.abs(sc - bestScore) <= 1e-12 && best && s.c < best.c)) {
+      best = s; bestScore = sc;
+    }
+  });
+  return best;
+}
+
+// Lowest by `key`; on a tie (e.g. a flat Tracker day), the lower-carbon start wins.
+function minBy(arr, key) {
+  var best = null;
+  arr.forEach(function (s) {
+    if (s[key] === null || s[key] === undefined) return;
+    if (!best || s[key] < best[key] - 1e-9 ||
+        (Math.abs(s[key] - best[key]) <= 1e-9 && s.c < best.c)) best = s;
+  });
+  return best;
+}
+
 /* ---- end pure logic ---- */
 
 /* ---- App ---- */
@@ -513,7 +665,140 @@ const FUEL_COLOURS = {
   hydro:'#4C8FBF', biomass:'#8F9B3D', imports:'#B08968', coal:'#4A4A48', other:'#9AA5A0'
 };
 
-const state = { postcode:null, region:null, periods:[], terc:null, sel:'dish', custom:{}, nowIdx:0 };
+const state = {
+  postcode:null, region:null, periods:[], terc:null, sel:'dish', custom:{}, nowIdx:0,
+  tariff:'none', lean:0.5, priceSets:{}, priceErr:{}, loadingPrices:false
+};
+
+/* --- Octopus prices --- */
+// Octopus is moving its public API to a new address; try the new one first.
+const OCTO_HOSTS = ['https://api.oegb-kraken.energy', 'https://api.octopus.energy'];
+// Used if the product list can't be read. Checked November 2026.
+const OCTO_FALLBACK = { agile:'AGILE-24-10-01', tracker:'SILVER-26-04-01' };
+const TARIFF_NAME = { agile:'Agile', tracker:'Tracker' };
+const REGION_NAME = { A:'Eastern', B:'East Midlands', C:'London', D:'Merseyside & North Wales',
+  E:'West Midlands', F:'North East', G:'North West', H:'Southern', J:'South East',
+  K:'South Wales', L:'South West', M:'Yorkshire', N:'South Scotland', P:'North Scotland' };
+
+function loadPrefs(){
+  try {
+    const p = JSON.parse(localStorage.getItem('wattoclock-prefs') || '{}');
+    if (p.tariff in { none:1, agile:1, tracker:1 }) state.tariff = p.tariff;
+    if (typeof p.lean === 'number' && p.lean >= 0 && p.lean <= 1) state.lean = p.lean;
+  } catch (e) {}
+}
+function savePrefs(){
+  try { localStorage.setItem('wattoclock-prefs', JSON.stringify({ tariff: state.tariff, lean: state.lean })); } catch (e) {}
+}
+
+async function octoGet(path){
+  let lastErr;
+  for (const host of OCTO_HOSTS) {
+    try {
+      const r = await fetch(host + path, { headers: { 'Accept': 'application/json' } });
+      if (!r.ok) { lastErr = new Error('status ' + r.status); continue; }
+      return await r.json();
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('unreachable');
+}
+
+// Find the current Agile or Tracker import product from Octopus's product list.
+async function findProduct(kind){
+  try {
+    let path = '/v1/products/?brand=OCTOPUS_ENERGY&is_variable=true&is_business=false';
+    const found = [];
+    for (let page = 0; page < 4 && path; page++) {
+      const j = await octoGet(path);
+      (j.results || []).forEach(p => {
+        const code = String(p.code || '');
+        const isImport = (p.direction || 'IMPORT') === 'IMPORT' && !/OUTGOING|EXPORT/.test(code);
+        if (!isImport || p.is_business || p.is_prepay) return;
+        if (kind === 'agile' && /^AGILE-/.test(code) && !/FLEX/.test(code)) found.push(p);
+        if (kind === 'tracker' && /^SILVER-/.test(code) && !/FLEX/.test(code)) found.push(p);
+      });
+      path = j.next ? j.next.replace(/^https?:\/\/[^/]+/, '') : null;
+    }
+    if (found.length) {
+      found.sort((a, b) => String(b.available_from).localeCompare(String(a.available_from)));
+      return found[0].code;
+    }
+  } catch (e) {}
+  return OCTO_FALLBACK[kind];
+}
+
+async function loadPrices(kind){
+  const P = state.periods;
+  if (kind === 'none' || !P.length || !state.region.letter) return;
+  if (state.priceSets[kind]) return;
+  state.loadingPrices = true; delete state.priceErr[kind];
+  renderTariff();
+  try {
+    const code = await findProduct(kind);
+    const tariff = 'E-1R-' + code + '-' + state.region.letter;
+    const from = new Date(P[0].from.getTime() - 26 * 3600e3).toISOString().slice(0, 16) + 'Z';
+    const to = P[P.length - 1].to.toISOString().slice(0, 16) + 'Z';
+    const j = await octoGet('/v1/products/' + code + '/electricity-tariffs/' + tariff +
+      '/standard-unit-rates/?period_from=' + from + '&period_to=' + to + '&page_size=1500');
+    const prices = alignPrices(P, j.results || []);
+    if (!prices.some(v => v !== null)) throw new Error('no rates');
+    let lastIdx = -1;
+    prices.forEach((v, i) => { if (v !== null) lastIdx = i; });
+    state.priceSets[kind] = { code, prices, pricedUntil: lastIdx >= 0 ? P[lastIdx].to : null,
+                              complete: prices.every(v => v !== null) };
+  } catch (e) {
+    state.priceErr[kind] = true;
+  } finally {
+    state.loadingPrices = false;
+  }
+}
+
+function activePrices(){
+  const set = state.tariff !== 'none' && state.priceSets[state.tariff];
+  return set ? set.prices : null;
+}
+
+function fmtMoney(pence){
+  const neg = pence < 0, v = Math.abs(pence);
+  const s = v < 99.5 ? Math.round(v) + 'p' : '£' + (v / 100).toFixed(2);
+  return (neg && Math.round(v) !== 0 ? '−' : '') + s;
+}
+
+function renderTariff(){
+  document.querySelectorAll('#tariffSeg button').forEach(b =>
+    b.setAttribute('aria-pressed', String(b.dataset.t === state.tariff)));
+  $('lean').value = Math.round(state.lean * 100);
+  const L = state.lean;
+  $('leanVal').textContent = L <= 0.02 ? 'Greenest only' : L >= 0.98 ? 'Cheapest only' :
+    L < 0.4 ? 'Mostly green' : L > 0.6 ? 'Mostly cheap' : 'Balanced';
+
+  const note = $('tariffNote');
+  note.className = 'tnote';
+  const set = state.priceSets[state.tariff];
+  $('leanRow').hidden = !set;
+  $('priceLegend').hidden = !set;
+  if (state.tariff === 'none') { note.textContent = ''; return; }
+  const name = TARIFF_NAME[state.tariff];
+  const reg = state.region && state.region.letter
+    ? ' region ' + state.region.letter + ' (' + REGION_NAME[state.region.letter] + ')' : '';
+  if (state.loadingPrices && !set) { note.textContent = 'Loading Octopus ' + name + ' prices…'; return; }
+  if (state.priceErr[state.tariff]) {
+    note.className = 'tnote warn';
+    note.textContent = 'Couldn’t load Octopus ' + name + ' prices right now, so this is carbon only. Tap Refresh to try again.';
+    return;
+  }
+  if (!set) { note.textContent = ''; return; }
+  let s = name + ' prices for' + reg + ' (' + set.code + '), including VAT.';
+  if (!set.complete && set.pricedUntil) {
+    s += ' Prices are published up to ' + fmtTime(set.pricedUntil) + ' ' + dayWord(set.pricedUntil) + '. ';
+    s += state.tariff === 'agile'
+      ? 'Tomorrow’s Agile prices usually arrive in the late afternoon; until then, the price-aware picks only include runs that finish by that time.'
+      : 'Tomorrow’s Tracker price isn’t out yet, so the price-aware picks only include runs that finish today.';
+  } else if (state.tariff === 'tracker') {
+    s += ' Tracker has one price per day, so cost only changes your start time when a run could move to a cheaper day.';
+  }
+  note.textContent = s;
+}
 
 /* --- formatting helpers (local time) --- */
 const fmtTime = d => d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
@@ -573,15 +858,18 @@ async function run(raw){
   try {
     const payload = await fetchForecast(outward);
     state.postcode = outward;
-    state.region = { name: payload.shortname || 'your region', dno: payload.dnoregion || '' };
+    state.region = { name: payload.shortname || 'your region', dno: payload.dnoregion || '',
+                     letter: REGION_LETTER[payload.regionid] || null };
     state.periods = payload.data.slice(0, 48).map(p => ({
       from: new Date(p.from), to: new Date(p.to),
       g: p.intensity.forecast, index: p.intensity.index || '',
       mix: p.generationmix || []
     }));
+    state.priceSets = {}; state.priceErr = {};
     status.className = ''; status.textContent = '';
     $('netcard').hidden = true;
     render();
+    if (state.tariff !== 'none') { await loadPrices(state.tariff); render(); }
   } catch (err) {
     status.className = 'error';
     if (err.network) {
@@ -631,7 +919,8 @@ function render(){
   $('stMax').innerHTML = vals[maxI] + ' <small>g</small>';
   $('stMaxT').textContent = fmtTime(P[maxI].from) + ' ' + dayWord(P[maxI].from);
 
-  renderAppliances();   // verdict + cards + avoid + chart band
+  renderTariff();
+  renderAppliances();   // verdict + picks + cards + avoid + chart band
   renderMix(nowP);
 }
 
@@ -681,86 +970,143 @@ function renderControls(sel, slotsNow, kwhNow, maxAvail){
   $('resetCust').addEventListener('click', () => { delete state.custom[sel.id]; renderAppliances(); });
 }
 
+// Everything the page needs to know about one appliance at its chosen run time.
+function planFor(a, maxAvail){
+  const P = state.periods, vals = P.map(p => p.g);
+  const n = appSlots(a, maxAvail);
+  const prof = buildProfile(a, n);
+  const kwh = appKwh(a, prof);
+  const prices = activePrices();
+  const scores = scoreStarts(vals, prices, prof);
+  const sumW = prof.reduce((x, y) => x + y, 0);
+  const wn = prof.map(x => x / sumW);
+  const green = minBy(scores, 'c');
+  const worst = scores.reduce((m, s) => (s.c > m.c ? s : m), scores[0]);
+  const cheap = prices ? minBy(scores, 'p') : null;
+  const pick = cheap ? balancePick(scores, state.lean) : green;
+  return { a, n, prof, wn, kwh, scores, green, worst, cheap, pick, priced: !!cheap };
+}
+
+function rangeOf(s, n){
+  const P = state.periods;
+  return fmtRange(P[s.i].from, P[s.i + n - 1].to);
+}
+function costOf(plan, s){ return s && s.p !== null ? fmtMoney(plan.kwh * s.p) : null; }
+
 function renderAppliances(){
   const P = state.periods;
   const vals = P.map(p => p.g);
   const maxAvail = P.length;
   const avail = APPLIANCES.filter(a => a.minSlots <= maxAvail);
   const sel = avail.find(a => a.id === state.sel) || avail[0];
-
-  const k = appSlots(sel, maxAvail);
-  const selProf = buildProfile(sel, k);
-  const w = scanWeighted(vals, selProf);
-  const selKwh = appKwh(sel, selProf);
+  const plan = planFor(sel, maxAvail);
+  const { n: k, kwh: selKwh, pick, green, cheap, worst } = plan;
   const dayAvg = mean(vals);
+  const appName = sel.name.toLowerCase();
 
   renderControls(sel, k, selKwh, maxAvail);
 
-  // verdict: best start for the selected appliance at its chosen run time
-  const bStart = P[w.best.i].from, bEnd = P[w.best.i + k - 1].to;
+  // verdict
+  const cost = costOf(plan, pick);
   $('verdict').innerHTML =
-    'Best time to start the ' + sel.name.toLowerCase() + ': <span class="win">' + fmtRange(bStart, bEnd) + '</span> ' +
-    '<span class="g">\u2248' + Math.round(w.best.avg) + ' gCO\u2082/kWh \u00b7 ' + fmtG(selKwh * w.best.avg) + ' CO\u2082 for the run</span>';
+    'Best time to start the ' + appName + ': <span class="win">' + rangeOf(pick, k) + '</span> ' +
+    '<span class="g">≈' + fmtG(selKwh * pick.c) + ' CO₂' + (cost ? ' · ' + cost : '') +
+    ' for the run</span>';
 
-  const wStart = P[w.worst.i].from, wEnd = P[w.worst.i + k - 1].to;
-  const save = savingPct(w.best.avg, w.worst.avg);
-  const saveG = selKwh * (w.worst.avg - w.best.avg);
-  let sub = 'Weighted by when the ' + sel.name.toLowerCase() + ' actually draws power across its ' + fmtHours(k) +
-            ' cycle. That\u2019s <strong>' + save + '% less carbon</strong> (\u2248' + fmtG(saveG) +
-            ' saved) than the worst start, ' + fmtRange(wStart, wEnd);
-  // worth waiting rather than switching on now?
-  if (state.nowIdx + k <= vals.length) {
-    let nowScore = 0;
-    for (let j = 0; j < k; j++) nowScore += w.wn[j] * vals[state.nowIdx + j];
-    const waitSave = savingPct(w.best.avg, nowScore);
-    if (w.best.i === state.nowIdx || waitSave < 3) {
-      sub += '. Starting now is about as good as it gets \u2014 press the button.';
-    } else if (w.best.i > state.nowIdx && waitSave >= 10) {
-      sub += ' \u2014 and about ' + waitSave + '% less than switching on right now.';
-    } else { sub += '.'; }
-  } else { sub += '.'; }
+  // subline
+  let sub;
+  if (plan.priced) {
+    const L = state.lean;
+    const why = L <= 0.02 ? 'the lowest-carbon start' :
+                L >= 0.98 ? 'the cheapest start' :
+                'the best balance of carbon and cost at your priority setting';
+    sub = 'This is ' + why + ' for a ' + fmtHours(k) + ' ' + appName + ' cycle, weighted by when it actually draws power.';
+    const extraG = selKwh * (pick.c - green.c), extraP = selKwh * (pick.p - cheap.p);
+    const costBit = pick.i !== cheap.i && extraP >= 0.5 ? 'costs ' + fmtMoney(extraP) + ' more than the cheapest start' : '';
+    const co2Bit = pick.i !== green.i && extraG >= 5 ? 'emits ' + fmtG(extraG) + ' more CO₂ than the greenest' : '';
+    if (costBit || co2Bit) sub += ' It ' + [costBit, co2Bit].filter(Boolean).join(' and ') + '.';
+  } else {
+    const save = savingPct(green.c, worst.c);
+    sub = 'Weighted by when the ' + appName + ' actually draws power across its ' + fmtHours(k) +
+          ' cycle. That’s <strong>' + save + '% less carbon</strong> (≈' + fmtG(selKwh * (worst.c - green.c)) +
+          ' saved) than the worst start, ' + rangeOf(worst, k);
+    const nowS = plan.scores.find(s => s.i === state.nowIdx);
+    if (nowS) {
+      const waitSave = savingPct(green.c, nowS.c);
+      if (green.i === state.nowIdx || waitSave < 3) sub += '. Starting now is about as good as it gets.';
+      else if (green.i > state.nowIdx && waitSave >= 10) sub += ', and about ' + waitSave + '% less than switching on right now.';
+      else sub += '.';
+    } else sub += '.';
+  }
   $('subline').innerHTML = sub;
+
+  // greenest / chosen / cheapest table
+  const picks = $('picks');
+  if (plan.priced) {
+    const nowS = plan.scores.find(s => s.i === state.nowIdx);
+    const same = green.i === cheap.i;
+    const rows = (same
+      ? [{ label:'Greenest and cheapest', s:green }]
+      : [{ label:'Greenest', s:green }, { label:'Cheapest', s:cheap }]
+    ).concat(nowS && nowS.i !== green.i && nowS.i !== cheap.i ? [{ label:'Start now', s:nowS }] : []);
+    const row = (label, s, chosen) =>
+      '<tr' + (chosen ? ' class="chosen"' : '') + '><td>' + label + (chosen ? '<span class="tag">your pick</span>' : '') +
+      '</td><td>' + rangeOf(s, k) + '</td><td class="num">' + fmtG(selKwh * s.c) + '</td><td class="num">' +
+      (s.p !== null ? fmtMoney(selKwh * s.p) : '<span class="na">not published</span>') + '</td></tr>';
+    let body = '';
+    let pickShown = false;
+    rows.forEach(r => {
+      const isPick = r.s.i === pick.i && !pickShown;
+      if (isPick) pickShown = true;
+      body += row(r.label, r.s, isPick);
+    });
+    if (!pickShown) body = row('Balanced', pick, true) + body;
+    picks.innerHTML = '<table><thead><tr><th>Start</th><th>When</th><th class="num">CO₂</th><th class="num">Cost</th></tr></thead><tbody>' +
+      body + '</tbody></table>' +
+      '<p class="picks-note">Cost is for about ' + fmtKwh(selKwh) + ' kWh, the energy this ' + appName +
+      ' run uses. Move the priority slider to trade carbon against cost.</p>';
+    picks.hidden = false;
+  } else {
+    picks.hidden = true; picks.innerHTML = '';
+  }
 
   // flat-day note
   const spread = (Math.max.apply(null, vals) - Math.min.apply(null, vals)) / (dayAvg || 1);
   $('flatnote').hidden = spread >= 0.15;
-  $('flatnote').textContent = 'Flat forecast in your region for the next 24 hours \u2014 timing makes less difference than usual today.';
+  $('flatnote').textContent = 'Flat carbon forecast in your region for the next 24 hours, so timing makes less difference to emissions than usual today.';
 
   // one selectable card per appliance, each at its own chosen run time
   const cards = $('cards'); cards.innerHTML = '';
   avail.forEach(a => {
-    const n = appSlots(a, maxAvail);
-    const prof = buildProfile(a, n);
-    const aw = scanWeighted(vals, prof);
-    const kwh = appKwh(a, prof);
-    const s = P[aw.best.i].from, e = P[aw.best.i + n - 1].to;
-    const pct = savingPct(aw.best.avg, aw.worst.avg);
-    const maxW = Math.max.apply(null, aw.wn), minW = Math.min.apply(null, aw.wn);
+    const pl = a.id === sel.id ? plan : planFor(a, maxAvail);
+    const maxW = Math.max.apply(null, pl.wn), minW = Math.min.apply(null, pl.wn);
     const peaky = maxW / (minW || 1) > 1.3;
-    const spark = aw.wn.map(x =>
+    const spark = pl.wn.map(x =>
       '<span' + (peaky && x >= 0.9 * maxW ? ' class="hot"' : '') +
       ' style="height:' + Math.round(4 + 14 * (x / maxW)) + 'px"></span>').join('');
+    const pct = savingPct(pl.pick.c, pl.worst.c);
+    const c = costOf(pl, pl.pick);
     const card = document.createElement('button');
     card.type = 'button';
     card.className = 'card' + (a.id === sel.id ? ' sel' : '');
     card.setAttribute('aria-pressed', String(a.id === sel.id));
     card.innerHTML =
       '<div class="t">' + a.name + '</div>' +
-      '<div class="ex">' + fmtHours(n) + ' \u00b7 \u2248' + fmtKwh(kwh) + ' kWh \u2014 ' + a.note + '</div>' +
+      '<div class="ex">' + fmtHours(pl.n) + ' · ≈' + fmtKwh(pl.kwh) + ' kWh — ' + a.note + '</div>' +
       '<div class="spark" aria-hidden="true">' + spark + '</div>' +
       '<div class="spark-cap">energy per half-hour of the cycle</div>' +
-      '<div class="when">' + fmtRange(s, e) + '</div>' +
-      '<div class="avg">\u2248' + Math.round(aw.best.avg) + ' gCO\u2082/kWh \u00b7 ' + fmtG(kwh * aw.best.avg) + ' per run</div>' +
-      '<div class="save"><b>' + pct + '% less</b> than the worst start (\u2248' + fmtG(kwh * (aw.worst.avg - aw.best.avg)) + ' saved)</div>';
+      '<div class="when">' + rangeOf(pl.pick, pl.n) + '</div>' +
+      '<div class="avg">≈' + fmtG(pl.kwh * pl.pick.c) + ' CO₂' + (c ? ' · ' + c : '') + ' per run</div>' +
+      '<div class="save"><b>' + pct + '% less carbon</b> than the worst start</div>';
     card.addEventListener('click', () => { state.sel = a.id; renderAppliances(); });
     cards.appendChild(card);
   });
 
   $('avoid').innerHTML =
-    'Worst time to start the ' + sel.name.toLowerCase() + ': <b>' + fmtRange(wStart, wEnd) + '</b> \u2014 ' +
-    'its heaviest draw would land on the dirtiest power of the day (\u2248' + Math.round(w.worst.avg) + ' gCO\u2082/kWh).';
+    'Worst time for carbon: <b>' + rangeOf(worst, k) + '</b>. The ' + appName +
+    '’s heaviest draw would land on the dirtiest power in the forecast (≈' + Math.round(worst.c) + ' gCO₂/kWh).';
 
-  drawChart(w.best, w.wn);
+  drawChart(pick, plan.wn);
 }
 
 /* --- chart --- */
@@ -768,7 +1114,8 @@ function drawChart(best, wn){
   const nSlots = wn.length;
   const P = state.periods, vals = P.map(p => p.g);
   const n = P.length;
-  const padL = 46, padR = 14, padT = 26, plotH = 150, axisH = 44;
+  const prices = activePrices();
+  const padL = 46, padR = prices ? 46 : 14, padT = 26, plotH = 150, axisH = 44;
   const pitch = 19, barW = 16;
   const plotW = n * pitch;
   const W = padL + plotW + padR, H = padT + plotH + axisH;
@@ -805,6 +1152,32 @@ function drawChart(best, wn){
     const yy = y(g), h = Math.max(2, padT + plotH - yy);
     s += '<rect class="bar ' + cls + '" data-i="' + i + '" style="--d:' + i + '" x="' + x + '" y="' + yy +
          '" width="' + barW + '" height="' + h + '" rx="2"/>';
+  }
+
+  // price line (stepped, one level per half-hour) on its own right-hand scale
+  if (prices) {
+    const known = prices.filter(v => v !== null);
+    const pLo = Math.min(0, Math.floor(Math.min.apply(null, known) / 5) * 5);
+    const pHi = Math.max(pLo + 5, Math.ceil(Math.max.apply(null, known) / 5) * 5);
+    const py = v => padT + plotH - ((v - pLo) / (pHi - pLo)) * plotH;
+    const xr = padL + plotW;
+    [pLo, (pLo + pHi) / 2, pHi].forEach(v => {
+      s += '<text x="' + (xr + 6) + '" y="' + (py(v) + 4) + '" font-size="10" fill="#1B2A23">' +
+           (Math.round(v * 10) / 10) + 'p</text>';
+    });
+    if (pLo < 0) s += '<line x1="' + padL + '" y1="' + py(0) + '" x2="' + xr + '" y2="' + py(0) +
+                      '" stroke="#1B2A23" stroke-dasharray="2 3" stroke-width="1"/>';
+    s += '<text x="' + (xr + 6) + '" y="14" font-size="10" fill="#1B2A23">p/kWh</text>';
+    let d = '', open = false;
+    for (let i = 0; i < n; i++) {
+      const v = prices[i];
+      const x0 = padL + i * pitch - (pitch - barW) / 2, x1 = x0 + pitch;
+      if (v === null) { open = false; continue; }
+      const yy = py(v).toFixed(1);
+      d += (open ? 'L' + x0 + ' ' + yy : 'M' + x0 + ' ' + yy) + ' L' + x1 + ' ' + yy + ' ';
+      open = true;
+    }
+    s += '<path d="' + d + '" fill="none" stroke="#1B2A23" stroke-width="2" stroke-linejoin="round"/>';
   }
 
   // x axis: time labels every 3 hours, day divider at local midnight
@@ -846,6 +1219,7 @@ function drawChart(best, wn){
       const top = (p.mix || []).slice().sort((a, b) => b.perc - a.perc)[0];
       tip.innerHTML = '<b>' + fmtTime(p.from) + '\u2013' + fmtTime(p.to) + ' ' + dayWord(p.from) + '</b><br>' +
         p.g + ' gCO\u2082/kWh' + (p.index ? ' \u00b7 ' + p.index : '') +
+        (prices ? '<br>price: ' + (prices[i] !== null ? (Math.round(prices[i] * 100) / 100) + 'p/kWh' : 'not published yet') : '') +
         (top ? '<br>top source: ' + top.fuel + ' ' + Math.round(top.perc) + '%' : '');
       tip.style.left = (+bar.getAttribute('x') + barW / 2) + 'px';
       tip.style.display = 'block';
@@ -883,6 +1257,27 @@ function renderMix(nowP){
 $('go').addEventListener('click', () => run($('pc').value));
 $('pc').addEventListener('keydown', e => { if (e.key === 'Enter') run($('pc').value); });
 $('refresh').addEventListener('click', () => state.postcode && run(state.postcode));
+
+document.querySelectorAll('#tariffSeg button').forEach(b => b.addEventListener('click', async () => {
+  state.tariff = b.dataset.t;
+  savePrefs();
+  if (!state.periods.length) { renderTariff(); return; }
+  render();
+  if (state.tariff !== 'none' && !state.priceSets[state.tariff]) {
+    await loadPrices(state.tariff);
+    render();
+  }
+}));
+let leanTimer = null;
+$('lean').addEventListener('input', ev => {
+  state.lean = +ev.target.value / 100;
+  renderTariff();
+  clearTimeout(leanTimer);
+  leanTimer = setTimeout(() => { savePrefs(); if (state.periods.length) renderAppliances(); }, 60);
+});
+
+loadPrefs();
+renderTariff();
 $('pc').focus();
 
 // Connectivity self-check on load: sandboxed previews (like in-chat viewers) often
