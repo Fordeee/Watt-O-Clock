@@ -716,7 +716,8 @@ const state = {
 // in the code is when that version launched.
 const TRACKER_VERSIONS = [
   ['SILVER-26-04-01', 'April 2026'], ['SILVER-25-09-02', 'September 2025'],
-  ['SILVER-25-04-15', 'April 2025'], ['SILVER-24-12-31', 'December 2024'],
+  ['SILVER-25-04-15', '15 April 2025'], ['SILVER-25-04-11', '11 April 2025'],
+  ['SILVER-24-12-31', 'December 2024'],
   ['SILVER-24-10-01', 'October 2024'], ['SILVER-24-07-01', 'July 2024'],
   ['SILVER-24-04-03', 'April 2024'], ['SILVER-23-12-06', 'December 2023']
 ];
@@ -913,7 +914,7 @@ function renderTariff(){
   if (!set) { note.textContent = ''; return; }
   const fromCode = !!state.codeRegion[state.tariff];
   let s = name + ' ' + set.code + ' prices for region ' + set.letter + ' (' + REGION_NAME[set.letter] + ')' +
-          (fromCode ? ', taken from your tariff code' : '') + ', including VAT.';
+          (fromCode ? ', taken from your tariff code' : '') + ', including VAT. ' + rateSummary(set) + '.';
   if (!set.complete && set.pricedUntil) {
     s += ' Prices are published up to ' + fmtTime(set.pricedUntil) + ' ' + dayWord(set.pricedUntil) + '. ';
     s += state.tariff === 'agile'
@@ -923,6 +924,18 @@ function renderTariff(){
     s += ' Tracker has one price per day, so cost only changes your start time when a run could move to a cheaper day.';
   }
   note.textContent = s;
+}
+
+// Today's (and tomorrow's) unit rate, so it can be checked against the Octopus app.
+function rateSummary(set){
+  const P = state.periods, pr = set.prices;
+  const fmt = v => (Math.round(v * 100) / 100).toFixed(2) + 'p/kWh';
+  const nowV = pr[state.nowIdx];
+  if (state.tariff === 'agile') return 'Price now: ' + (nowV !== null ? fmt(nowV) : 'not published');
+  const tIdx = P.findIndex(p => dayWord(p.from) === 'tomorrow');
+  const tomV = tIdx >= 0 ? pr[tIdx] : null;
+  return 'Today: ' + (nowV !== null ? fmt(nowV) : 'not published') +
+         '; tomorrow: ' + (tomV !== null ? fmt(tomV) : 'not out yet');
 }
 
 // Switch the version for the current tariff and reload its prices.
