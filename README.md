@@ -10,6 +10,10 @@ Enter a postcode and the app reads the next 24 hours of the regional carbon inte
 - Each appliance has a consumption profile: a fixed heating burst at the start, an optional burst at the end (such as a dishwasher's hot rinse), and a low-power middle that stretches with the run time you choose.
 - The app scores every possible start time by the energy-weighted carbon intensity the appliance would actually see, and picks the lowest.
 
+The app has three tabs: **Plan** (the forecast chart, appliance picker and recommended start time), **Grid** (the generation mix now, at your start time, and across the next 24 hours) and **Settings** (postcode, Octopus tariff and version, and energy per run). Settings are saved in your browser only.
+
+If you're on Octopus Agile or Tracker, each recommendation can be set to Greenest, Balanced or Cheapest.
+
 The whole app is a single file, `index.html`, with no build step or server.
 
 ## Limitations
